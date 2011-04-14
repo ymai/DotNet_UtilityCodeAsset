@@ -87,6 +87,8 @@ namespace com.yusufmai.codeasset
 
         public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator()
         {
+            if (_reSortRequired)
+                Sort();
             Enumerator elist = new Enumerator(this);
             return elist;
             //if (_reSortRequired)
@@ -101,6 +103,8 @@ namespace com.yusufmai.codeasset
 
         IEnumerator System.Collections.IEnumerable.GetEnumerator()
         {
+            if (_reSortRequired)
+                Sort(); 
             Enumerator elist = new Enumerator(this);
             return elist;
             //if (_reSortRequired)
