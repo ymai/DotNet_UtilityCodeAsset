@@ -13,20 +13,36 @@ namespace com.yusufmai.codeasset
     /// The design aims at small memory footprint as this is intended to be used by limited resource device.
     /// 
     /// </summary>
-    public class SortByValueDictionary<TKey, TValue> : IDictionary<TKey, TValue>
+    public class SortByValueDictionary<TKey, TValue> : IDictionary<TKey, TValue> where TValue : class, IComparable<TValue>  where TKey : class
     {
         private Dictionary<TKey, int> _map = new Dictionary<TKey, int>();
         private TKey[] _keys;
         private TValue[] _values;
         private bool _reSortRequired;
-        private int _count;
         private int _size=100;
         private int _increment = 100;
         private string _notSupportedMsg = @"List of Keys and Values is not accessible in SortByValueDictionary. 
                                             Please use GetEnumerator to loop throw the list of KeyValuePair.
                                             It will be sorted by value";
         private IComparer<TValue> _comparer;
+
+        public SortByValueDictionary(IComparer<TValue> c, int size)
+        {
+            _comparer = c;
+            if (size <= 0)
+                size = 100;
+            _size = size;
+            _keys = new TKey[_size];
+            _values = new TValue[_size];
+        }
+
+        public SortByValueDictionary(int size)
+            : this(new NullsLastComparer<TValue>(), size)
+        {
+        }
+
         public SortByValueDictionary()
+            : this(100)
         {
         }
 
@@ -61,28 +77,31 @@ namespace com.yusufmai.codeasset
 
 
 
-        public SortByValueDictionary( IComparer<TValue> c)
-        {
-            _comparer = c;
-        }
-
-
         private void IncreaseArraySize()
         {
-            _size+=_increment;
-            Array.Resize<TKey>(ref _keys, _size);
-            Array.Resize<TValue>(ref _values, _size);
+            lock (this)
+            {
+                _size += _increment;
+                Array.Resize<TKey>(ref _keys, _size);
+                Array.Resize<TValue>(ref _values, _size);
+            }
         }
 
         private void Sort()
         {
-            if (_comparer != null)
+            lock (this)
+            {
                 Array.Sort(_values, _keys, _comparer);
-            else
-                Array.Sort(_values, _keys);
+                _map.Clear();
+                for (int i = 0; i < _keys.Length; i++)
+                {
+                    if (_keys[i] != null && _values[i] != null)
+                        _map.Add(_keys[i], i);
+                }
+            }
         }
 
-#region IEnumerator
+        #region IEnumerator
 
 
         public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator()
@@ -160,9 +179,9 @@ namespace com.yusufmai.codeasset
                 if (_maxreached)
                     return false;
                 _index++;
-                if (_index >= _s.Count)
+                if (_index >= (_s.Count-1))
                     _maxreached = true;
-                return true;
+                return (_s.Count == 0) ? false : true;
             }
 
             public void Reset()
@@ -194,7 +213,7 @@ namespace com.yusufmai.codeasset
             if (_reSortRequired)
                 Sort();
             int i = 0;
-            while (i < _count)
+            while (i < Count)
             {
                 yield return new KeyValuePair<TKey, TValue>(_keys[i], _values[i]);
                 i++;
@@ -281,23 +300,23 @@ namespace com.yusufmai.codeasset
             }
             lock (this)
             {
+                int index;
                 if (_map.ContainsKey(key))
                 {
-                    int index = (int)_map[key];
+                    index = (int)_map[key];
                     _map.Remove(key);
-                    _keys[index] = key;
-                    _values[index] = value;
                 }
                 else
                 {
-                    if (++_count > _size)
+                    if (Count >= _size)
                     {
                         IncreaseArraySize();
                     }
-                    _keys[_count] = key;
-                    _values[_count] = value;
+                    index = Count;
                 }
-                _map.Add(key, _count);
+                _keys[index] = key;
+                _values[index] = value;
+                _map.Add(key, index);
                 _reSortRequired = true;
             }
 
@@ -317,7 +336,6 @@ namespace com.yusufmai.codeasset
                         _map.Remove(key);
                         return true;
                     }
-                    _count--;
                 }
                 _reSortRequired = true;
                 return true;
@@ -334,9 +352,9 @@ namespace com.yusufmai.codeasset
         {
             lock (this)
             {
+                Array.Clear(_keys, 0, Count);
+                Array.Clear(_values, 0, Count);
                 _map.Clear();
-                Array.Clear(_keys, 0, _count);
-                Array.Clear(_values, 0, _count);
             }
         }
 
@@ -360,7 +378,7 @@ namespace com.yusufmai.codeasset
 #region ICollection
         public virtual int Count
         {
-            get { return _count; }
+            get { return _map.Count; }
         }
 
         public virtual bool IsSynchronized
@@ -390,7 +408,7 @@ namespace com.yusufmai.codeasset
 
         public virtual void CopyTo(KeyValuePair<TKey, TValue>[] arr, int startindex)
         {
-            for (int i = startindex; i < _count; i++)
+            for (int i = startindex; i < Count; i++)
             {
                 arr[i] = new KeyValuePair<TKey, TValue>(_keys[i], _values[i]);
             }
@@ -431,4 +449,23 @@ namespace com.yusufmai.codeasset
         }
 #endregion
     }
+    /// <summary>
+    /// A comparer that put null to the very end
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    public sealed class NullsLastComparer<T> : Comparer<T>
+    {
+        public override int Compare(T x, T y)
+        {
+            if (x == null)
+                return (y == null) ? 0 : 1;
+
+            if (y == null)
+                return -1;
+
+            return Comparer<T>.Default.Compare(x, y);
+        }
+    }
+
+
 }
