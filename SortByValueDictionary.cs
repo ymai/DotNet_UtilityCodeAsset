@@ -6,7 +6,7 @@ using System.Threading;
 using System.Diagnostics;
 using System.Collections.ObjectModel;
 
-namespace com.yusufmai.codeasset
+namespace UtilityCodeAsset.Collections
 {
     /// <summary>
     /// A Hashtable that returns the list to you in the order sorted by Value.
@@ -26,7 +26,7 @@ namespace com.yusufmai.codeasset
                                             It will be sorted by value";
         private IComparer<TValue> _comparer;
 
-        public SortByValueDictionary(IComparer<TValue> c, int size)
+        public SortByValueDictionary(IComparer<TValue> c, int size, int increment)
         {
             _comparer = c;
             if (size <= 0)
@@ -36,19 +36,25 @@ namespace com.yusufmai.codeasset
             _values = new TValue[_size];
         }
 
-        public SortByValueDictionary(int size)
-            : this(new NullsLastComparer<TValue>(), size)
+        public SortByValueDictionary(int size, int increment)
+            : this(new NullsLastComparer<TValue>(), size, increment)
         {
         }
 
         public SortByValueDictionary()
-            : this(100)
+            : this(100, 100)
         {
+        }
+
+        protected virtual bool ReSortRequired
+        {
+            get { return _reSortRequired; }
+            set { _reSortRequired = value; }
         }
 
         public virtual TKey Previous( TKey current)
         {
-            if (_reSortRequired)
+            if (ReSortRequired)
                 Sort();
             try
             {
@@ -63,7 +69,7 @@ namespace com.yusufmai.codeasset
 
         public virtual TKey Next(TKey current)
         {
-            if (_reSortRequired)
+            if (ReSortRequired)
                 Sort();
             try
             {
@@ -87,7 +93,7 @@ namespace com.yusufmai.codeasset
             }
         }
 
-        private void Sort()
+        protected virtual void Sort()
         {
             lock (this)
             {
@@ -98,19 +104,20 @@ namespace com.yusufmai.codeasset
                     if (_keys[i] != null && _values[i] != null)
                         _map.Add(_keys[i], i);
                 }
+                ReSortRequired = false;
             }
         }
 
         #region IEnumerator
 
 
-        public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator()
+        public virtual IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator()
         {
-            if (_reSortRequired)
+            if (ReSortRequired)
                 Sort();
             Enumerator elist = new Enumerator(this);
             return elist;
-            //if (_reSortRequired)
+            //if (ReSortRequired)
             //    Sort();
             //int i = 0;
             //while (i < _count)
@@ -122,11 +129,11 @@ namespace com.yusufmai.codeasset
 
         IEnumerator System.Collections.IEnumerable.GetEnumerator()
         {
-            if (_reSortRequired)
+            if (ReSortRequired)
                 Sort(); 
             Enumerator elist = new Enumerator(this);
             return elist;
-            //if (_reSortRequired)
+            //if (ReSortRequired)
             //    Sort();
             //int i = 0;
             //while (i < _count)
@@ -205,12 +212,12 @@ namespace com.yusufmai.codeasset
         }
 
 
-        public IEnumerable<KeyValuePair<TKey, TValue>> GetEnumerable()
+        public virtual IEnumerable<KeyValuePair<TKey, TValue>> GetEnumerable()
         {
             // if _sortiedEntries == null then sort (and set _sortiedEntries)
             // take a local copy of _sortiedEntries
             // do a foreach on the local sortiedEntries (doingyield reutrn)
-            if (_reSortRequired)
+            if (ReSortRequired)
                 Sort();
             int i = 0;
             while (i < Count)
@@ -263,12 +270,12 @@ namespace com.yusufmai.codeasset
         {
             get
             { 
-                //if (_sortedList == null || _reSortRequired)
+                //if (_sortedList == null || ReSortRequired)
                 //{
                 //    //LockList();
                 //    lock (this)
                 //    {
-                //        if (_sortedList == null || _reSortRequired)
+                //        if (_sortedList == null || ReSortRequired)
                 //            //try
                 //            //{
                 //            _sortedList = new List<IComparable<TValue>>(_map.Values);
@@ -279,7 +286,7 @@ namespace com.yusufmai.codeasset
                 //        //{
                 //        //    return firstPair.Value.CompareTo(nextPair.Value);
                 //        //});
-                //        _reSortRequired = false;
+                //        ReSortRequired = false;
                 //    }
                 //    //finally
                 //    //{
@@ -317,7 +324,7 @@ namespace com.yusufmai.codeasset
                 _keys[index] = key;
                 _values[index] = value;
                 _map.Add(key, index);
-                _reSortRequired = true;
+                ReSortRequired = true;
             }
 
         }
@@ -337,7 +344,7 @@ namespace com.yusufmai.codeasset
                         return true;
                     }
                 }
-                _reSortRequired = true;
+                ReSortRequired = true;
                 return true;
             }
             return false;
@@ -423,27 +430,23 @@ namespace com.yusufmai.codeasset
 
         public virtual TValue this[TKey key]
         {
-            get { return _values[(int)_map[key]]; }
+            get
+            {
+                return _values[(int)_map[key]];
+            }
             set
             {
-                lock (this)
+                if (value is TValue)
                 {
-                    //LockList();
-                    //try
-                    //{
-                    if (value is TValue)
+                    lock (this)
                     {
                         Remove(key);
                         Add(key, value);
                     }
-                    else
-                    {
-                        throw new ArgumentException(String.Format("Value cannot be of type {0}", value.GetType()));
-                    }
-                    //}
-                    //finally
-                    //{
-                    //    UnlockList();
+                }
+                else
+                {
+                    throw new ArgumentException(String.Format("Value cannot be of type {0}", value.GetType()));
                 }
             }
         }

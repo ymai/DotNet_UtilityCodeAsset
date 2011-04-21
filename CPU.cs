@@ -5,7 +5,7 @@ using System.Text;
 using System.Runtime.InteropServices;
 
 
-namespace com.yusufmai.codeasset
+namespace UtilityCodeAsset.SystemInfo
 {
     public class CPU
     {

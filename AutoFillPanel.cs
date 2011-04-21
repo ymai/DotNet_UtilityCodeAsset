@@ -6,7 +6,7 @@ using System.Windows.Forms;
 using System.Reflection;
 using System.Drawing;
 
-namespace com.yusufmai.codeasset
+namespace UtilityCodeAsset.UserInterface
 
 {
     public class AutoFillPanel : Panel
